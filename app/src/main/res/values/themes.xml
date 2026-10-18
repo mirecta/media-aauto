@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MediaAuto" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#E5A00D</item>
+        <item name="colorSecondary">#E5A00D</item>
+    </style>
+    <style name="Theme.MediaAuto.Player" parent="Theme.MediaAuto">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Médiá Auto</string>
+    <string name="settings">Nastavenia</string>
+    <string name="search">Hľadať</string>
+    <string name="now_playing">Prehráva sa</string>
+    <string name="empty">Žiadne položky</string>
+    <string name="loading">Načítavam…</string>
+</resources>
