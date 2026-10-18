@@ -6,4 +6,5 @@
     <string name="now_playing">Prehráva sa</string>
     <string name="empty">Žiadne položky</string>
     <string name="loading">Načítavam…</string>
+    <string name="car_video_name">Médiá Video</string>
 </resources>

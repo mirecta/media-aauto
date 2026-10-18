@@ -16,10 +16,17 @@ Android aplikácia pre Android Auto na prehrávanie lokálnej hudby a videí a f
 - V aute sa používa samostatná (nižšia) kvalita streamu, lebo sa prehráva len zvuk
 - **Telefón**: ten istý strom, nastavenia účtov a prehrávač s obrazom
 
-### Obmedzenie: video v aute
+### Video v aute, keď stojí – „Médiá Video“
 
-Android Auto neumožňuje aplikáciám tretích strán zobrazovať video na displeji auta (media šablóna je
-len pre zvuk). Filmy a seriály sa preto v aute **počúvajú**, obraz je len v telefóne.
+Android Auto zatiaľ nepovoľuje video aplikácie tretích strán (oficiálna podpora pre Android 17 sa
+pripravuje). Aplikácia preto obsahuje druhú časť **Médiá Video**, ktorá sa v aute hlási ako
+*navigačná* – tie dostanú od auta plochu na kreslenie mapy a my na ňu kreslíme video.
+
+- Obsah sa vyberá v **Médiá Auto** (alebo v telefóne), potom otvorte **Médiá Video** a uvidíte obraz.
+- Ovládanie: −30 s, play/pauza, +30 s, ťuknutie na obraz = pauza.
+- Obraz sa ukáže **len pri overenej nulovej rýchlosti** auta (povolenie *rýchlosť auta* sa pýta
+  pri prvom spustení). Počas jazdy alebo pri neznámej rýchlosti je obraz zakrytý a ide len zvuk.
+- Ide o neoficiálne riešenie – funguje len pri sideloade so zapnutými *Neznámymi zdrojmi*, nie cez Google Play.
 
 ## Zostavenie a inštalácia
 
@@ -48,6 +55,7 @@ Testovanie bez auta: [Desktop Head Unit](https://developer.android.com/training/
 - `library/Library.kt` – strom položiek pre Auto aj telefón, zostavenie radu, pokračovanie
 - `library/LocalMedia.kt` – MediaStore; `library/ArtworkProvider.kt` – obrázky cez `content://` pre Auto
 - `PlaybackService.kt` – `MediaLibraryService` (Media3/ExoPlayer), ukladanie pozície
+- `car/VideoCarAppService.kt` – obraz videa na displeji auta (navigačná plocha + virtuálny displej)
 - `ui/` – prehliadač, nastavenia, prehrávač s obrazom
 
 Chýba oproti Tizen verzii: titulky, ručný výber streamu, pridanie/odobranie zo zoznamu.
