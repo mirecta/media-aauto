@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/selectableItemBackground"
@@ -14,7 +15,7 @@
         android:layout_width="48dp"
         android:layout_height="64dp"
         android:importantForAccessibility="no"
-        android:background="#FF2B3240"
+        android:background="@drawable/bg_poster"
         android:scaleType="centerCrop" />
 
     <LinearLayout
@@ -51,7 +52,13 @@
             android:id="@+id/progress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:max="1000" />
+            android:layout_marginTop="6dp"
+            android:max="1000"
+            app:indicatorColor="#FFE5A00D"
+            app:indicatorTrackGapSize="0dp"
+            app:trackColor="#33FFFFFF"
+            app:trackCornerRadius="2dp"
+            app:trackStopIndicatorSize="0dp"
+            app:trackThickness="3dp" />
     </LinearLayout>
 </LinearLayout>

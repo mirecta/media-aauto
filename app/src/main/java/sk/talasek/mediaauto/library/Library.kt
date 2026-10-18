@@ -70,6 +70,14 @@ class Library(
             "romance" to "Romantické", "sci-fi" to "Sci-Fi", "sport" to "Športové", "talkshow" to "Talkshow",
             "thriller" to "Thrillery", "war" to "Vojnové", "western" to "Westerny"
         )
+        private val LIST_ICONS = mapOf(
+            "queue" to R.drawable.ic_bookmark, "unfinished" to R.drawable.ic_clock, "finished" to R.drawable.ic_check,
+            "news-with-dubbing" to R.drawable.ic_mic, "news-with-subtitles" to R.drawable.ic_subs,
+            "last-added" to R.drawable.ic_plus, "current-topic" to R.drawable.ic_star,
+            "news-popular" to R.drawable.ic_flame, "popular" to R.drawable.ic_trend,
+            "news-top-rated" to R.drawable.ic_sparkle, "top-rated" to R.drawable.ic_award
+        )
+        private val PICKER_ICONS = mapOf("l" to R.drawable.ic_az, "g" to R.drawable.ic_tag, "q" to R.drawable.ic_hd)
         private val QUALITY_FILTER = listOf("uhd" to "UHD", "fhd" to "Full HD", "hd" to "HD", "sd" to "SD")
     }
 
@@ -112,7 +120,8 @@ class Library(
         )
         .build()
 
-    private fun infoItem(id: String, title: String, subtitle: String? = null) = folder("info/$id", title, subtitle)
+    private fun infoItem(id: String, title: String, subtitle: String? = null) =
+        folder("info/$id", title, subtitle, icon(R.drawable.ic_info))
 
     fun errorItem(e: Throwable) = infoItem("error", e.message ?: "Neznáma chyba", "Skúste to znova neskôr")
 
@@ -217,9 +226,12 @@ class Library(
     )
 
     /** Priecinok so zoznamom zo Sosac; filmy a serialy sa zobrazia ako mriezka plagatov. */
-    private fun listFolder(kind: String, name: String, title: String, group: String? = null, param: Pair<String, String>? = null): MediaItem {
+    private fun listFolder(
+        kind: String, name: String, title: String, group: String? = null, param: Pair<String, String>? = null, iconRes: Int? = null
+    ): MediaItem {
         val id = "list/$kind/$name/1" + (param?.let { "/${it.first}/${it.second}" } ?: "")
-        return folder(id, title, group = group, browsableStyle = GRID, playableStyle = GRID)
+        val res = iconRes ?: LIST_ICONS[name] ?: R.drawable.ic_folder
+        return folder(id, title, art = icon(res), group = group, browsableStyle = GRID, playableStyle = GRID)
     }
 
     // ---- strom ----
@@ -248,12 +260,12 @@ class Library(
             MUSIC -> when {
                 !local.hasAudioPermission -> listOf(infoItem("perm", "Povoľte prístup k hudbe", "V aplikácii v telefóne"))
                 p.size == 1 -> listOf(
-                    folder("music/artists", "Interpreti", art = icon(R.drawable.ic_folder)),
-                    folder("music/albums", "Albumy", art = icon(R.drawable.ic_folder), browsableStyle = GRID),
-                    folder("music/songs", "Všetky skladby", art = icon(R.drawable.ic_music))
+                    folder("music/artists", "Interpreti", art = icon(R.drawable.ic_person)),
+                    folder("music/albums", "Albumy", art = icon(R.drawable.ic_album), browsableStyle = GRID),
+                    folder("music/songs", "Všetky skladby", art = icon(R.drawable.ic_list))
                 )
                 p[1] == "artists" -> local.artists().map {
-                    folder("artist/${it.id}", it.name, "${it.tracks} skladieb", browsableStyle = GRID, type = MediaMetadata.MEDIA_TYPE_ARTIST)
+                    folder("artist/${it.id}", it.name, "${it.tracks} skladieb", icon(R.drawable.ic_person), browsableStyle = GRID, type = MediaMetadata.MEDIA_TYPE_ARTIST)
                 }
                 p[1] == "albums" -> local.albums().map(::albumFolder)
                 p[1] == "songs" -> local.allSongs().map { songItem(it) }
@@ -295,9 +307,9 @@ class Library(
             listFolder(k, "popular", "Najpopulárnejšie", "Rebríčky"),
             listFolder(k, "news-top-rated", "Najlepšie novinky", "Rebríčky"),
             listFolder(k, "top-rated", "Najlepšie hodnotené", "Rebríčky"),
-            folder("pick/$k/a-z/l", "A – Z", group = "Prehliadať"),
-            folder("pick/$k/by-genre/g", "Podľa žánru", group = "Prehliadať"),
-            folder("pick/$k/by-quality/q", "Podľa kvality", group = "Prehliadať")
+            folder("pick/$k/a-z/l", "A – Z", art = icon(R.drawable.ic_az), group = "Prehliadať"),
+            folder("pick/$k/by-genre/g", "Podľa žánru", art = icon(R.drawable.ic_tag), group = "Prehliadať"),
+            folder("pick/$k/by-quality/q", "Podľa kvality", art = icon(R.drawable.ic_hd), group = "Prehliadať")
         )
         return out
     }
@@ -316,8 +328,8 @@ class Library(
             listFolder(k, "popular", "Najpopulárnejšie", "Rebríčky"),
             listFolder(k, "news-top-rated", "Najlepšie novinky", "Rebríčky"),
             listFolder(k, "top-rated", "Najlepšie hodnotené", "Rebríčky"),
-            folder("pick/$k/a-z/l", "A – Z", group = "Prehliadať"),
-            folder("pick/$k/by-genre/g", "Podľa žánru", group = "Prehliadať")
+            folder("pick/$k/a-z/l", "A – Z", art = icon(R.drawable.ic_az), group = "Prehliadať"),
+            folder("pick/$k/by-genre/g", "Podľa žánru", art = icon(R.drawable.ic_tag), group = "Prehliadať")
         )
     }
 
@@ -328,7 +340,7 @@ class Library(
             "q" -> QUALITY_FILTER
             else -> emptyList()
         }
-        return values.map { (value, label) -> listFolder(kind, name, label, param = param to value) }
+        return values.map { (value, label) -> listFolder(kind, name, label, param = param to value, iconRes = PICKER_ICONS[param]) }
     }
 
     private fun JSONArray.objects() = (0 until length()).mapNotNull { optJSONObject(it) }
@@ -348,7 +360,7 @@ class Library(
         }.toMutableList()
         if (arr.length() >= SosacApi.PAGE) {
             val next = "list/$kind/$name/${page + 1}" + (if (p.size >= 6) "/${p[4]}/${p[5]}" else "")
-            out.add(folder(next, "Ďalšie…", "Strana ${page + 1}", browsableStyle = GRID, playableStyle = GRID))
+            out.add(folder(next, "Ďalšie…", "Strana ${page + 1}", icon(R.drawable.ic_more), browsableStyle = GRID, playableStyle = GRID))
         }
         if (out.isEmpty()) out.add(infoItem("empty", "Žiadne položky"))
         return out

@@ -227,8 +227,17 @@ class MainActivity : AppCompatActivity() {
             }
             progress.visibility = if (pct > 0) View.VISIBLE else View.GONE
             progress.progress = (pct * 1000).toInt()
+            val uri = meta.artworkUri
+            val isIcon = uri == null || uri.scheme == "android.resource"
+            // Ikony menu na farebnej dlazdici, plagaty a obaly cez celu plochu.
+            val size = (48 * itemView.resources.displayMetrics.density).toInt()
+            art.layoutParams = art.layoutParams.apply { height = if (isIcon) size else size * 4 / 3 }
+            art.setBackgroundResource(if (isIcon) R.drawable.bg_icon_tile else R.drawable.bg_poster)
+            art.clipToOutline = true
+            art.scaleType = if (isIcon) ImageView.ScaleType.CENTER else ImageView.ScaleType.CENTER_CROP
+            art.imageTintList = if (isIcon) android.content.res.ColorStateList.valueOf(0xFFE5A00D.toInt()) else null
             val placeholder = if (meta.isPlayable == true) R.drawable.ic_play else R.drawable.ic_folder
-            ImageLoader.load(lifecycleScope, art, meta.artworkUri, placeholder)
+            ImageLoader.load(lifecycleScope, art, uri, placeholder)
             itemView.setOnClickListener { onItem(item) }
         }
     }
