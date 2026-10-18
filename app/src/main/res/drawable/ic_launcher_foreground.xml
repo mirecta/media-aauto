@@ -1,8 +1,19 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#E5A00D"
-        android:pathData="M44,36 L76,54 L44,72 Z" />
-    <path android:strokeColor="#E5A00D" android:strokeWidth="4" android:fillColor="#00000000"
-        android:pathData="M54,26 A28,28 0 1,1 53.99,26 Z" />
+    <!-- displej s tlacidlom play -->
+    <path android:pathData="M35,40H69A7,7 0,0 1,76 47V67A7,7 0,0 1,69 74H35A7,7 0,0 1,28 67V47A7,7 0,0 1,35 40Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear"
+                android:startX="30" android:startY="40" android:endX="74" android:endY="74"
+                android:startColor="#FFFFC24B" android:endColor="#FFF0681F" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M46,48.5L62,57L46,65.5Z" />
+    <!-- odznak s notou -->
+    <path android:fillColor="#FF0E1222" android:pathData="M72,29A11,11 0,1 1,71.99 29Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M72,31A9,9 0,1 1,71.99 31Z" />
+    <path android:fillColor="#FFF0681F"
+        android:pathData="M71,34V41.6A2.6,2.6 0,1 0,72.8 44.1V37.2H76.2V34Z" />
 </vector>
