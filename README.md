@@ -14,6 +14,8 @@ Android aplikácia pre Android Auto na prehrávanie lokálnej hudby a videí a f
 - Hľadanie (aj hlasové „pusti X v Médiá Auto“) – filmy, seriály, lokálna hudba a videá
 - Pokračovanie od poslednej pozície, priebeh sa ukladá na Sosac (každých 30 s a pri pauze)
 - V aute sa používa samostatná (nižšia) kvalita streamu, lebo sa prehráva len zvuk
+- **Sťahovanie na offline prehranie**: v telefóne podržte prst na filme/epizóde → *Stiahnuť do telefónu*.
+  Stiahnuté sú v ponuke *Stiahnuté* (telefón aj auto) a hrajú aj bez internetu. Kvalita a „len cez Wi-Fi“ v Nastaveniach.
 - **Telefón**: ten istý strom, nastavenia účtov a prehrávač s obrazom
 
 ### Video v aute, keď stojí – „Médiá Video“
@@ -54,6 +56,7 @@ Testovanie bez auta: [Desktop Head Unit](https://developer.android.com/training/
   `sosac://…` a skutočná adresa sa zistí až pri prehratí (`ResolvingDataSource`)
 - `library/Library.kt` – strom položiek pre Auto aj telefón, zostavenie radu, pokračovanie
 - `library/LocalMedia.kt` – MediaStore; `library/ArtworkProvider.kt` – obrázky cez `content://` pre Auto
+- `download/` – sťahovanie (Media3 DownloadManager, cache s kľúčom `sosac:<kind>:<id>`)
 - `PlaybackService.kt` – `MediaLibraryService` (Media3/ExoPlayer), ukladanie pozície
 - `car/VideoCarAppService.kt` – obraz videa na displeji auta (navigačná plocha + virtuálny displej)
 - `ui/` – prehliadač, nastavenia, prehrávač s obrazom
