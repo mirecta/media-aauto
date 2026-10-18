@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import android.widget.PopupMenu
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.widget.Toast
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -43,6 +44,10 @@ import sk.talasek.mediaauto.library.Library
 
 /** Prehliadanie toho isteho stromu, ktory vidi Android Auto, a spustenie prehravania v telefone. */
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        private val QUALITY_LABEL = mapOf("UHD HDR" to "2160p HDR", "UHD" to "2160p", "FHD" to "1080p", "HD" to "720p", "SD" to "480p")
+    }
 
     private data class Level(val id: String, val title: String, val search: String? = null)
 
@@ -162,15 +167,13 @@ class MainActivity : AppCompatActivity() {
         }
         PopupMenu(this, anchor).apply {
             menu.add(label).setOnMenuItemClickListener {
-                if (state == null) {
-                    downloads.start(item)
-                    Toast.makeText(this@MainActivity, "Sťahovanie začalo – nájdete ho v ponuke Stiahnuté", Toast.LENGTH_SHORT).show()
-                } else {
+                if (state == null) chooseDownload(item)
+                else {
                     downloads.remove(item.mediaId)
-                }
-                lifecycleScope.launch {
-                    delay(500)
-                    reload(quiet = true)
+                    lifecycleScope.launch {
+                        delay(500)
+                        reload(quiet = true)
+                    }
                 }
                 true
             }
@@ -178,6 +181,48 @@ class MainActivity : AppCompatActivity() {
         }
         return true
     }
+
+    /** Zisti dostupne kvality s velkostou suboru a necha vybrat, ktoru stiahnut. */
+    private fun chooseDownload(item: MediaItem) {
+        val link = item.mediaMetadata.extras?.getString(Library.K_LINK) ?: return
+        val app = App.get(this)
+        val waiting = MaterialAlertDialogBuilder(this)
+            .setTitle(item.mediaMetadata.title)
+            .setMessage("Zisťujem dostupné kvality a veľkosť…")
+            .setNegativeButton("Zrušiť", null)
+            .show()
+        val job = lifecycleScope.launch {
+            val variants = try {
+                app.streams.variants(link)
+            } catch (e: Exception) {
+                waiting.dismiss()
+                Toast.makeText(this@MainActivity, e.message ?: "Chyba", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            waiting.dismiss()
+            val labels = variants.map { v ->
+                val size = v.bytes?.let { formatSize(it) } ?: "veľkosť neznáma"
+                "${QUALITY_LABEL[v.quality] ?: v.quality} · $size · ${v.lang}"
+            }
+            MaterialAlertDialogBuilder(this@MainActivity)
+                .setTitle("Stiahnuť: ${item.mediaMetadata.title}")
+                .setItems(labels.toTypedArray()) { _, which ->
+                    app.downloads.start(item, variants[which].quality)
+                    Toast.makeText(this@MainActivity, "Sťahovanie začalo – nájdete ho v ponuke Stiahnuté", Toast.LENGTH_SHORT).show()
+                    lifecycleScope.launch {
+                        delay(500)
+                        reload(quiet = true)
+                    }
+                }
+                .setNegativeButton("Zrušiť", null)
+                .show()
+        }
+        waiting.setOnCancelListener { job.cancel() }
+        waiting.setOnDismissListener { if (!job.isCompleted) job.cancel() }
+    }
+
+    private fun formatSize(bytes: Long) =
+        if (bytes >= 1_000_000_000) "%.1f GB".format(bytes / 1e9) else "%.0f MB".format(bytes / 1e6)
 
     private fun reload(quiet: Boolean = false) {
         val level = stack.last()

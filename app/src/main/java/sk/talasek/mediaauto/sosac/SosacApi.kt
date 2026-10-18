@@ -197,6 +197,34 @@ class SosacApi(private val prefs: Prefs) {
         }
     }
 
+    /** Velkost suboru v bajtoch (HEAD, pripadne prvy bajt cez Range), null ak ju server neprezradi. */
+    suspend fun contentLength(url: String): Long? = withContext(Dispatchers.IO) {
+        fun open(method: String, range: Boolean): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = TIMEOUT
+            readTimeout = TIMEOUT
+            setRequestProperty("User-Agent", USER_AGENT)
+            if (range) setRequestProperty("Range", "bytes=0-0")
+        }
+        val head = open("HEAD", false)
+        try {
+            if (head.responseCode in 200..299 && head.contentLengthLong > 0) return@withContext head.contentLengthLong
+        } catch (e: IOException) {
+            // skusime Range
+        } finally {
+            head.disconnect()
+        }
+        val c = open("GET", true)
+        try {
+            c.responseCode
+            c.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
+        } catch (e: IOException) {
+            null
+        } finally {
+            c.disconnect()
+        }
+    }
+
     /**
      * Odkaz zo streamuj vracia v tele adresu samotneho suboru. Keby server niekedy
      * poslal rovno video, citanie prerusime a pouzijeme konecnu adresu po presmerovani.

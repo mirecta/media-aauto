@@ -1,6 +1,9 @@
 package sk.talasek.mediaauto.sosac
 
 import android.net.Uri
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import sk.talasek.mediaauto.Prefs
@@ -57,6 +60,25 @@ class StreamResolver(private val api: SosacApi, private val prefs: Prefs) {
         return api.resolve(autoStream(streams, quality).url)
     }
 
+    data class Variant(val lang: String, val quality: String, val bytes: Long?)
+
+    /** Dostupne kvality v preferovanom dabingu aj s velkostou suboru (na vyber pred stiahnutim). */
+    suspend fun variants(link: String): List<Variant> {
+        if (!api.isConfigured) throw SosacException(401, "Zadajte prihlasovacie údaje v Nastaveniach")
+        val data = api.links(link)
+        val streams = flatten(data)
+        if (streams.isEmpty()) {
+            val msg = data.optString("errormessage").takeIf { it.isNotEmpty() }
+            throw SosacException(0, msg ?: "Pre toto video nie sú dostupné žiadne streamy")
+        }
+        val lang = preferredLang(streams)
+        return coroutineScope {
+            streams.filter { it.lang == lang }.sortedBy { rank(it.quality) }.map { s ->
+                async { Variant(s.lang, s.quality, runCatching { api.contentLength(api.resolve(s.url)) }.getOrNull()) }
+            }.awaitAll()
+        }
+    }
+
     private fun flatten(data: JSONObject): List<Stream> {
         val out = mutableListOf<Stream>()
         val urls = data.optJSONObject("URL") ?: return out
@@ -70,13 +92,18 @@ class StreamResolver(private val api: SosacApi, private val prefs: Prefs) {
         return out
     }
 
-    /** Preferovany dabing a v nom najlepsia kvalita, ktora neprekracuje nastavenu. */
-    private fun autoStream(streams: List<Stream>, quality: String): Stream {
-        val prefsLangs = listOf(prefs.dub1, prefs.dub2)
+    /** Dabing podla nastaveni (prvy, potom druhy), inak prvy dostupny. */
+    private fun preferredLang(streams: List<Stream>): String {
         var lang = streams[0].lang
-        for (p in prefsLangs.reversed()) {
+        for (p in listOf(prefs.dub1, prefs.dub2).reversed()) {
             streams.firstOrNull { it.lang.uppercase() == p }?.let { lang = it.lang }
         }
+        return lang
+    }
+
+    /** Preferovany dabing a v nom najlepsia kvalita, ktora neprekracuje nastavenu. */
+    private fun autoStream(streams: List<Stream>, quality: String): Stream {
+        val lang = preferredLang(streams)
         val sameLang = streams.filter { it.lang == lang }.sortedBy { rank(it.quality) }
         val wanted = rank(quality)
         return sameLang.firstOrNull { rank(it.quality) >= wanted } ?: sameLang.last()

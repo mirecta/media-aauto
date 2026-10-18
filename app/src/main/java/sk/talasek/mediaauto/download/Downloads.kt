@@ -138,7 +138,7 @@ class Downloads(private val context: Context, private val prefs: Prefs, streams:
     fun get(mediaId: String): Download? = manager.downloadIndex.getDownload(mediaId)
 
     /** Zacne stahovat Sosac polozku (mediaId play/<kind>/<id>, extras z Library). */
-    fun start(item: MediaItem): Boolean {
+    fun start(item: MediaItem, quality: String = prefs.downloadQuality): Boolean {
         val ex = item.mediaMetadata.extras ?: return false
         val kind = ex.getString(Library.K_KIND) ?: return false
         val id = ex.getString(Library.K_ID) ?: return false
@@ -149,7 +149,7 @@ class Downloads(private val context: Context, private val prefs: Prefs, streams:
             meta.artworkUri?.toString(), ex.getDouble(Library.K_DURATION), meta.mediaType ?: 0,
             meta.albumTitle?.toString(), ex.getDouble(Library.K_RESUME)
         )
-        val request = DownloadRequest.Builder(item.mediaId, StreamResolver.uri(kind, id, link, prefs.downloadQuality))
+        val request = DownloadRequest.Builder(item.mediaId, StreamResolver.uri(kind, id, link, quality))
             .setCustomCacheKey(cacheKey(kind, id))
             .setData(info.toJson())
             .build()
