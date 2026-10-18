@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package sk.talasek.mediaauto.library
 
 import android.content.Context
@@ -16,6 +18,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import sk.talasek.mediaauto.Prefs
 import sk.talasek.mediaauto.R
+import sk.talasek.mediaauto.download.Downloads
+import androidx.media3.exoplayer.offline.Download
 import sk.talasek.mediaauto.sosac.SosacApi
 import sk.talasek.mediaauto.sosac.SosacItem
 import sk.talasek.mediaauto.sosac.StreamResolver
@@ -40,7 +44,8 @@ class Library(
     context: Context,
     private val api: SosacApi,
     private val prefs: Prefs,
-    private val local: LocalMedia
+    private val local: LocalMedia,
+    private val downloads: Downloads
 ) {
     companion object {
         const val ROOT = "root"
@@ -48,6 +53,7 @@ class Library(
         const val VIDEOS = "videos"
         const val MOVIES = "movies"
         const val SERIALS = "serials"
+        const val DOWNLOADS = "downloads"
 
         const val K_KIND = "sosac.kind"
         const val K_ID = "sosac.id"
@@ -186,7 +192,8 @@ class Library(
     private fun movieItem(item: JSONObject, group: String? = null): MediaItem? {
         if (SosacItem.link(item).isEmpty()) return null
         return playable(
-            "play/movies/${SosacItem.id(item)}", SosacItem.title(item), SosacItem.meta(item), art(item.optString("i")),
+            "play/movies/${SosacItem.id(item)}", SosacItem.title(item),
+            downloadedMark("play/movies/${SosacItem.id(item)}") + SosacItem.meta(item), art(item.optString("i")),
             MediaMetadata.MEDIA_TYPE_MOVIE, durationMs = durationMs(item), group = group,
             extra = sosacExtras("movies", item)
         )
@@ -198,7 +205,8 @@ class Library(
         val serial = SosacItem.title(item)
         val title = listOf(SosacItem.episodeCode(item), SosacItem.episodeName(item)).filter { it.isNotEmpty() }.joinToString(" ")
         return playable(
-            "play/episodes/${SosacItem.id(item)}", title.ifEmpty { serial }, serial, art(item.optString("i")),
+            "play/episodes/${SosacItem.id(item)}", title.ifEmpty { serial },
+            downloadedMark("play/episodes/${SosacItem.id(item)}") + serial, art(item.optString("i")),
             MediaMetadata.MEDIA_TYPE_TV_SHOW, durationMs = durationMs(item), album = serial, group = group,
             extra = sosacExtras("episodes", item)
         )
@@ -214,7 +222,7 @@ class Library(
         episodeJson[id] = ep
         return playable(
             id, if (prefix.isEmpty()) listOf("$num.", epName).filter { it.isNotEmpty() }.joinToString(" ") else "$prefix$code $epName".trim(),
-            "$serial · $code", art(ep.optString("i").ifEmpty { info.optString("i") }),
+            downloadedMark(id) + "$serial · $code", art(ep.optString("i").ifEmpty { info.optString("i") }),
             MediaMetadata.MEDIA_TYPE_TV_SHOW, durationMs = durationMs(ep), album = serial,
             extra = sosacExtras("episodes", ep, "season/$serialId/$season")
         )
@@ -273,16 +281,53 @@ class Library(
             }
             "artist" -> local.albums(p[1].toLong()).map(::albumFolder)
             "album" -> local.albumSongs(p[1].toLong()).map { songItem(it) }
-            VIDEOS -> if (!local.hasVideoPermission) listOf(infoItem("perm", "Povoľte prístup k videám", "V aplikácii v telefóne"))
+            VIDEOS -> downloadsEntry() + if (!local.hasVideoPermission) listOf(infoItem("perm", "Povoľte prístup k videám", "V aplikácii v telefóne"))
             else local.videos().map { videoItem(it) }
-            MOVIES -> if (!api.isConfigured) loginInfo() else moviesMenu()
-            SERIALS -> if (!api.isConfigured) loginInfo() else serialsMenu()
+            MOVIES -> downloadsEntry("Moje") + if (!api.isConfigured) loginInfo() else moviesMenu()
+            SERIALS -> downloadsEntry("Moje") + if (!api.isConfigured) loginInfo() else serialsMenu()
+            DOWNLOADS -> downloads.list().mapNotNull(::downloadItem).ifEmpty { listOf(infoItem("empty", "Nič nie je stiahnuté", "Stiahnuť sa dá v telefóne: podržte prst na filme alebo epizóde")) }
             "list" -> sosacList(p)
             "pick" -> picker(p[1], p[2], p[3])
             "serial" -> seasons(p[1])
             "season" -> episodes(p[1], p[2])
             else -> emptyList()
         }
+    }
+
+    // ---- stiahnute ----
+
+    private fun downloadedMark(mediaId: String) = if (downloads.isCompleted(mediaId)) "⬇ " else ""
+
+    private fun downloadsEntry(group: String? = null): List<MediaItem> =
+        if (!downloads.hasAny) emptyList()
+        else listOf(folder(DOWNLOADS, "Stiahnuté", art = icon(R.drawable.ic_download), group = group, playableStyle = GRID))
+
+    private fun downloadItem(d: Download): MediaItem? {
+        val info = Downloads.Info.from(d) ?: return null
+        val status = when (d.state) {
+            Download.STATE_COMPLETED -> "Stiahnuté · %.1f GB".format(d.bytesDownloaded / 1e9)
+            Download.STATE_DOWNLOADING -> "Sťahuje sa %.0f %%".format(maxOf(0f, d.percentDownloaded))
+            Download.STATE_QUEUED -> if (d.stopReason != Download.STOP_REASON_NONE) "Pozastavené" else "Čaká na stiahnutie (Wi-Fi)"
+            Download.STATE_FAILED -> "Sťahovanie zlyhalo"
+            else -> "Odstraňuje sa"
+        }
+        val resume = resumeOverride[info.mediaId] ?: info.resumeSec
+        val dur = info.durationSec
+        return playable(
+            info.mediaId, info.title, "$status · ${info.subtitle}", downloads.artUri(info), info.mediaType,
+            durationMs = (dur * 1000).toLong(), album = info.album,
+            extra = extras {
+                putString(K_KIND, info.kind)
+                putString(K_ID, info.id)
+                putString(K_LINK, info.link)
+                putDouble(K_RESUME, resume)
+                putDouble(K_DURATION, dur)
+                if (resume > 0 && dur > 0) {
+                    putInt(MediaConstants.EXTRAS_KEY_COMPLETION_STATUS, MediaConstants.EXTRAS_VALUE_COMPLETION_STATUS_PARTIALLY_PLAYED)
+                    putDouble(MediaConstants.EXTRAS_KEY_COMPLETION_PERCENTAGE, minOf(1.0, resume / dur))
+                }
+            }
+        )
     }
 
     private fun albumFolder(a: LocalMedia.Album) =
@@ -462,7 +507,7 @@ class Library(
 
     suspend fun item(mediaId: String): MediaItem? = when (mediaId) {
         ROOT -> root()
-        else -> items[mediaId] ?: fetchItem(mediaId)
+        else -> items[mediaId] ?: withContext(Dispatchers.IO) { downloads.get(mediaId)?.let(::downloadItem) } ?: fetchItem(mediaId)
     }
 
     private suspend fun fetchItem(mediaId: String): MediaItem? {
@@ -492,7 +537,9 @@ class Library(
             kind, ex.getString(K_ID) ?: "", ex.getString(K_LINK) ?: "",
             if (car) prefs.carQuality else prefs.quality
         )
-        return item.buildUpon().setUri(uri).setMimeType(MimeTypes.VIDEO_MP4).build()
+        return item.buildUpon().setUri(uri).setMimeType(MimeTypes.VIDEO_MP4)
+            .setCustomCacheKey(Downloads.cacheKey(kind, ex.getString(K_ID) ?: ""))
+            .build()
     }
 
     private fun resumeMs(item: MediaItem): Long {

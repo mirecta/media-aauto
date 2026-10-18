@@ -36,6 +36,9 @@ class Prefs(context: Context) {
     var dub1 by string("dub1", "CZ")
     var dub2 by string("dub2", "SK")
     var nextEpisode by bool("nextEpisode", true)
+    /** Stahovanie do telefonu na offline prehravanie. */
+    var downloadQuality by string("downloadQuality", "HD")
+    var downloadWifiOnly by bool("downloadWifiOnly", true)
 
     /** Posledna prehravana polozka, pre obnovenie prehravania (napr. tlacidlo Play v aute). */
     var lastMediaId by string("lastMediaId", "")

@@ -5,7 +5,6 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import sk.talasek.mediaauto.Prefs
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Prevod odkazu Sosac videa na adresu suboru zo streamuj.tv.
@@ -18,7 +17,6 @@ class StreamResolver(private val api: SosacApi, private val prefs: Prefs) {
 
     companion object {
         const val SCHEME = "sosac"
-        private const val TTL = 2 * 60 * 60 * 1000L
         val QUALITIES = listOf("UHD HDR", "UHD", "FHD", "HD", "SD")
 
         fun uri(kind: String, id: String, link: String, quality: String): Uri = Uri.Builder()
@@ -30,16 +28,12 @@ class StreamResolver(private val api: SosacApi, private val prefs: Prefs) {
 
     private data class Stream(val lang: String, val quality: String, val url: String)
 
-    private val cache = ConcurrentHashMap<String, Pair<String, Long>>()
-
-    fun invalidate(uri: Uri) {
-        cache.remove(uri.toString())
-    }
-
-    /** Volane z vlakna nacitavania prehravaca. */
+    /**
+     * Volane z vlakna nacitavania prehravaca pri kazdom otvoreni (aj pri posune). Adresu si nepamatame:
+     * subor zo streamuj ma v adrese token, ktory po pouziti prestane platit a server potom
+     * namiesto videa vrati text "invalid token".
+     */
     fun resolveBlocking(uri: Uri): Uri {
-        val key = uri.toString()
-        cache[key]?.let { (url, time) -> if (System.currentTimeMillis() - time < TTL) return Uri.parse(url) }
         val link = uri.pathSegments.getOrNull(1) ?: throw IOException("Neplatný odkaz na video")
         val quality = uri.getQueryParameter("q") ?: prefs.quality
         val url = try {
@@ -49,7 +43,6 @@ class StreamResolver(private val api: SosacApi, private val prefs: Prefs) {
         } catch (e: Exception) {
             throw IOException(e.message ?: "Chyba pri získavaní streamu", e)
         }
-        cache[key] = url to System.currentTimeMillis()
         return Uri.parse(url)
     }
 

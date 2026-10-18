@@ -81,6 +81,22 @@ class SettingsActivity : AppCompatActivity() {
             isChecked = prefs.nextEpisode
             setOnCheckedChangeListener { _, checked -> prefs.nextEpisode = checked }
         }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+
+        section("Sťahovanie do telefónu")
+        option("Kvalita sťahovania", prefs::downloadQuality, qualities)
+        box.addView(MaterialSwitch(this).apply {
+            text = "Sťahovať len cez Wi-Fi"
+            isChecked = prefs.downloadWifiOnly
+            setOnCheckedChangeListener { _, checked ->
+                prefs.downloadWifiOnly = checked
+                app.downloads.setWifiOnly(checked)
+            }
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+        box.addView(TextView(this).apply {
+            text = "Film alebo epizódu stiahnete podržaním prsta na nej v zozname. Stiahnuté nájdete v ponuke " +
+                "Stiahnuté (aj v aute) a prehrajú sa aj bez internetu."
+            setPadding(0, dp(8), 0, 0)
+        })
     }
 
     private fun section(title: String) {

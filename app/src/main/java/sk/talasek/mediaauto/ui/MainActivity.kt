@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package sk.talasek.mediaauto.ui
 
 import android.Manifest
@@ -16,7 +18,14 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
+import android.widget.PopupMenu
+import android.widget.Toast
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.media3.exoplayer.offline.Download
+import kotlinx.coroutines.delay
+import sk.talasek.mediaauto.App
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaBrowser
@@ -90,6 +99,15 @@ class MainActivity : AppCompatActivity() {
         }
         onBackPressedDispatcher.addCallback(this, back)
         stack.add(Level(Library.ROOT, getString(R.string.app_name)))
+        // Kym je otvoreny zoznam stiahnutych, obnovuje sa priebeh.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    delay(2000)
+                    if (stack.lastOrNull()?.id == Library.DOWNLOADS) reload(quiet = true)
+                }
+            }
+        }
         requestPermissions()
     }
 
@@ -120,7 +138,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onMenu(item: MenuItem): Boolean {
-        if (item.itemId == R.id.settings) startActivity(Intent(this, SettingsActivity::class.java))
+        when (item.itemId) {
+            R.id.settings -> startActivity(Intent(this, SettingsActivity::class.java))
+            R.id.downloads -> if (stack.last().id != Library.DOWNLOADS) open(Level(Library.DOWNLOADS, getString(R.string.downloads)))
+        }
         return true
     }
 
@@ -129,16 +150,47 @@ class MainActivity : AppCompatActivity() {
         reload()
     }
 
-    private fun reload() {
+    /** Ponuka po podrzani prsta na Sosac videu: stiahnut do telefonu / zrusit / odstranit. */
+    private fun onLongItem(item: MediaItem, anchor: View): Boolean {
+        if (item.mediaMetadata.extras?.getString(Library.K_KIND) == null) return false
+        val downloads = App.get(this).downloads
+        val state = downloads.state(item.mediaId)
+        val label = when (state) {
+            null -> "Stiahnuť do telefónu"
+            Download.STATE_COMPLETED -> "Odstrániť z telefónu"
+            else -> "Zrušiť sťahovanie"
+        }
+        PopupMenu(this, anchor).apply {
+            menu.add(label).setOnMenuItemClickListener {
+                if (state == null) {
+                    downloads.start(item)
+                    Toast.makeText(this@MainActivity, "Sťahovanie začalo – nájdete ho v ponuke Stiahnuté", Toast.LENGTH_SHORT).show()
+                } else {
+                    downloads.remove(item.mediaId)
+                }
+                lifecycleScope.launch {
+                    delay(500)
+                    reload(quiet = true)
+                }
+                true
+            }
+            show()
+        }
+        return true
+    }
+
+    private fun reload(quiet: Boolean = false) {
         val level = stack.last()
         toolbar.title = level.title
         toolbar.navigationIcon = if (stack.size > 1) androidx.appcompat.content.res.AppCompatResources
             .getDrawable(this, androidx.appcompat.R.drawable.abc_ic_ab_back_material) else null
         back.isEnabled = stack.size > 1
         val b = browser ?: return
-        status.text = getString(R.string.loading)
-        status.visibility = View.VISIBLE
-        adapter.submit(emptyList())
+        if (!quiet) {
+            status.text = getString(R.string.loading)
+            status.visibility = View.VISIBLE
+            adapter.submit(emptyList())
+        }
         lifecycleScope.launch {
             val result = try {
                 if (level.search != null) b.getSearchResult(level.search, 0, Int.MAX_VALUE, null).await()
@@ -239,6 +291,7 @@ class MainActivity : AppCompatActivity() {
             val placeholder = if (meta.isPlayable == true) R.drawable.ic_play else R.drawable.ic_folder
             ImageLoader.load(lifecycleScope, art, uri, placeholder)
             itemView.setOnClickListener { onItem(item) }
+            itemView.setOnLongClickListener { onLongItem(item, it) }
         }
     }
 }

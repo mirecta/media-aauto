@@ -11,9 +11,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.LibraryResult
@@ -30,7 +27,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
 import sk.talasek.mediaauto.library.Library
-import sk.talasek.mediaauto.sosac.SosacApi
 import sk.talasek.mediaauto.sosac.StreamResolver
 import sk.talasek.mediaauto.ui.PlayerActivity
 
@@ -58,17 +54,8 @@ class PlaybackService : MediaLibraryService() {
         app = App.get(this)
         library = app.library
 
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent(SosacApi.USER_AGENT)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(SosacApi.TIMEOUT)
-            .setReadTimeoutMs(SosacApi.TIMEOUT)
-        val dataSource = ResolvingDataSource.Factory(DefaultDataSource.Factory(this, http)) { spec ->
-            if (spec.uri.scheme == StreamResolver.SCHEME) spec.withUri(app.streams.resolveBlocking(spec.uri)) else spec
-        }
-
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(app.downloads.playbackFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
                 true
@@ -127,6 +114,7 @@ class PlaybackService : MediaLibraryService() {
         private var item: MediaItem? = null
         private var position = 0L
         private var ticks = 0
+        private var retries = 0
 
         override fun run() {
             item = player.currentMediaItem
@@ -139,6 +127,7 @@ class PlaybackService : MediaLibraryService() {
             handler.removeCallbacks(this)
             if (isPlaying) {
                 ticks = 0
+                retries = 0
                 handler.postDelayed(this, TICK_MS)
             } else if (player.playbackState != Player.STATE_ENDED) {
                 saveProgress(player.currentMediaItem, player.currentPosition)
@@ -164,10 +153,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            // Odkaz zo streamuj mohol expirovat; dalsi pokus ho ziska znova.
-            player.currentMediaItem?.localConfiguration?.uri?.let {
-                if (it.scheme == StreamResolver.SCHEME) app.streams.invalidate(it)
-            }
+            // Pri chybe siete alebo neplatnom tokene skusime este raz: adresa sa pri otvoreni zisti znova.
+            val sosac = player.currentMediaItem?.localConfiguration?.uri?.scheme == StreamResolver.SCHEME
+            if (sosac && retries++ < 2) player.prepare()
         }
     }
 
