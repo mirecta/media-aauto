@@ -473,8 +473,9 @@ class Library(
             }
         }
         withContext(Dispatchers.IO) {
-            if (local.hasAudioPermission) local.searchSongs(q).take(50).mapTo(out) { songItem(it, "Hudba") }
-            if (local.hasVideoPermission) local.searchVideos(q).take(50).mapTo(out) { videoItem(it, "Videá") }
+            // Chyba v lokalnom hladani nema zahodit vysledky zo Sosac.
+            runCatching { if (local.hasAudioPermission) local.searchSongs(q).take(50).mapTo(out) { songItem(it, "Hudba") } }
+            runCatching { if (local.hasVideoPermission) local.searchVideos(q).take(50).mapTo(out) { videoItem(it, "Videá") } }
         }
         for (it in out) {
             items[it.mediaId] = it

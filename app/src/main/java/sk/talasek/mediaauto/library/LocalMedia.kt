@@ -21,6 +21,9 @@ class LocalMedia(private val context: Context) {
         val uri: Uri get() = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
     }
 
+    /** Triedenie podla jazyka (MediaStore na novych Androidoch odmieta COLLATE LOCALIZED). */
+    private val collator = java.text.Collator.getInstance()
+
     private fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
     val hasAudioPermission: Boolean
@@ -43,15 +46,15 @@ class LocalMedia(private val context: Context) {
     fun artists(): List<Artist> = query(
         MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI,
         arrayOf(MediaStore.Audio.Artists._ID, MediaStore.Audio.Artists.ARTIST, MediaStore.Audio.Artists.NUMBER_OF_TRACKS),
-        null, null, MediaStore.Audio.Artists.ARTIST + " COLLATE LOCALIZED"
-    ) { Artist(it.getLong(0), it.getString(1) ?: "?", it.getInt(2)) }
+        null, null, null
+    ) { Artist(it.getLong(0), it.getString(1) ?: "?", it.getInt(2)) }.sortedWith(compareBy(collator) { it.name })
 
     fun albums(artistId: Long? = null): List<Album> = query(
         if (artistId != null) MediaStore.Audio.Artists.Albums.getContentUri("external", artistId)
         else MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
         arrayOf(MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM, MediaStore.Audio.Albums.ARTIST),
-        null, null, MediaStore.Audio.Albums.ALBUM + " COLLATE LOCALIZED"
-    ) { Album(it.getLong(0), it.getString(1) ?: "?", it.getString(2) ?: "") }
+        null, null, null
+    ) { Album(it.getLong(0), it.getString(1) ?: "?", it.getString(2) ?: "") }.sortedWith(compareBy(collator) { it.name })
 
     private val songColumns = arrayOf(
         MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
@@ -63,7 +66,7 @@ class LocalMedia(private val context: Context) {
         MediaStore.Audio.Media.IS_MUSIC + " != 0 AND " + selection, args, order
     ) { Song(it.getLong(0), it.getString(1) ?: "?", it.getString(2) ?: "", it.getString(3) ?: "", it.getLong(4), it.getLong(5)) }
 
-    fun allSongs() = songs("1", null, MediaStore.Audio.Media.TITLE + " COLLATE LOCALIZED")
+    fun allSongs() = songs("1", null, MediaStore.Audio.Media.TITLE).sortedWith(compareBy(collator) { it.title })
 
     fun albumSongs(albumId: Long) = songs(
         MediaStore.Audio.Media.ALBUM_ID + " = ?", arrayOf(albumId.toString()),
@@ -77,8 +80,8 @@ class LocalMedia(private val context: Context) {
         return songs(
             "(" + MediaStore.Audio.Media.TITLE + " LIKE ? OR " + MediaStore.Audio.Media.ARTIST + " LIKE ? OR " +
                 MediaStore.Audio.Media.ALBUM + " LIKE ?)",
-            arrayOf(like, like, like), MediaStore.Audio.Media.TITLE + " COLLATE LOCALIZED"
-        )
+            arrayOf(like, like, like), MediaStore.Audio.Media.TITLE
+        ).sortedWith(compareBy(collator) { it.title })
     }
 
     private val videoColumns = arrayOf(
