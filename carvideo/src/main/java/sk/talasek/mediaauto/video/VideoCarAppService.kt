@@ -1,4 +1,4 @@
-package sk.talasek.mediaauto.car
+package sk.talasek.mediaauto.video
 
 import android.annotation.SuppressLint
 import android.app.Presentation
@@ -41,15 +41,18 @@ import androidx.media3.session.SessionToken
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.google.common.util.concurrent.MoreExecutors
-import sk.talasek.mediaauto.PlaybackService
-import sk.talasek.mediaauto.R
+import androidx.media3.session.MediaBrowser
+import androidx.media3.session.SessionCommand
+import android.os.Bundle
 
 /**
  * Obraz prehravaneho videa na displeji auta, len ked auto stoji.
  *
  * Android Auto zatial nepovoluje video aplikacie tretich stran, preto sa aplikacia hlasi ako
  * navigacna: tie dostanu od auta plochu (Surface) na kreslenie mapy. Na nu vytvorime virtualny
- * displej s PlayerView napojenym na PlaybackService. Vyber obsahu ostava v media casti aplikacie.
+ * displej s PlayerView napojenym na prehravac aplikacie Médiá Auto (PlaybackService), z ktorej
+ * berie aj zoznamy na vyber. Je to samostatna aplikacia, lebo Android Auto ukazuje z jedneho
+ * balika len jednu ikonu.
  *
  * Obraz sa ukazuje len pri overenej nulovej rychlosti auta; inak (jazda alebo neznama rychlost)
  * je plocha zakryta a pokracuje len zvuk.
@@ -73,9 +76,14 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
         private const val SPEED_PERMISSION = "com.google.android.gms.permission.CAR_SPEED"
         private const val PARKED_MPS = 0.5f
         private const val SEEK_MS = 30_000L
+        /** Prehravac v aplikacii Médiá Auto. */
+        val PLAYER = ComponentName("sk.talasek.mediaauto", "sk.talasek.mediaauto.PlaybackService")
+        /** Musi sediet s PlaybackService.CMD_VIDEO v Médiá Auto. */
+        private val VIDEO_COMMAND = SessionCommand("sk.talasek.mediaauto.VIDEO", Bundle.EMPTY)
     }
 
-    private var controller: MediaController? = null
+    private var controller: MediaBrowser? = null
+    private var connectFailed = false
     private var display: VirtualDisplay? = null
     private var presentation: Presentation? = null
     private var playerView: PlayerView? = null
@@ -103,7 +111,6 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
 
     private val surfaceCallback = object : SurfaceCallback {
         override fun onSurfaceAvailable(container: SurfaceContainer) {
-            android.util.Log.i("MediaAutoCar", "surfaceAvailable ${container.width}x${container.height} surface=${container.surface}")
             val surface = container.surface ?: return
             releaseDisplay()
             val dm = ContextCompat.getSystemService(carContext, DisplayManager::class.java) ?: return
@@ -112,10 +119,7 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
             showPresentation(vd)
         }
 
-        override fun onSurfaceDestroyed(container: SurfaceContainer) {
-            android.util.Log.i("MediaAutoCar", "surfaceDestroyed")
-            releaseDisplay()
-        }
+        override fun onSurfaceDestroyed(container: SurfaceContainer) = releaseDisplay()
 
         override fun onClick(x: Float, y: Float) = togglePlay()
 
@@ -127,10 +131,15 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
 
     override fun onCreate(owner: LifecycleOwner) {
         carContext.getCarService(androidx.car.app.AppManager::class.java).setSurfaceCallback(surfaceCallback)
-        val token = SessionToken(carContext, ComponentName(carContext, PlaybackService::class.java))
-        val future = MediaController.Builder(carContext, token).buildAsync()
+        val token = SessionToken(carContext, PLAYER)
+        val future = MediaBrowser.Builder(carContext, token).buildAsync()
         future.addListener({
-            val c = runCatching { future.get() }.getOrNull() ?: return@addListener
+            val c = runCatching { future.get() }.getOrNull()
+            if (c == null) {
+                connectFailed = true
+                updateCover()
+                return@addListener
+            }
             if (lifecycle.currentState == androidx.lifecycle.Lifecycle.State.DESTROYED) {
                 c.release()
                 return@addListener
@@ -180,7 +189,12 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
     private val videoId = "car-" + System.identityHashCode(this)
 
     /** Video stopu chceme, len kym je obrazovka v aute otvorena (inak sa zbytocne dekoduje). */
-    private fun setVideoTrack(c: MediaController, enabled: Boolean) = PlaybackService.claimVideo(c, videoId, enabled)
+    private fun setVideoTrack(c: MediaController, enabled: Boolean) {
+        c.sendCustomCommand(VIDEO_COMMAND, Bundle().apply {
+            putString("id", videoId)
+            putBoolean("on", enabled)
+        })
+    }
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun showPresentation(vd: VirtualDisplay) {
@@ -224,8 +238,9 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
         val text = cover ?: return
         val c = controller
         val message = when {
+            connectFailed -> "Nedá sa pripojiť k aplikácii Médiá Auto\n\nJe nainštalovaná v telefóne?"
             ContextCompat.checkSelfPermission(carContext, SPEED_PERMISSION) != android.content.pm.PackageManager.PERMISSION_GRANTED ->
-                "Povoľte prístup k rýchlosti auta\n\nOtvorte Médiá Auto v telefóne a povoľte „rýchlosť auta“"
+                "Povoľte prístup k rýchlosti auta\n\nOtvorte Médiá Video v telefóne a povoľte „rýchlosť auta“"
             speed == null -> "Rýchlosť auta nie je známa – video sa zobrazí len keď auto stojí"
             !parked -> "Video je dostupné len keď auto stojí\n(zvuk pokračuje)"
             c == null || c.currentMediaItem == null -> "Nič sa neprehráva\n\nŤuknite na Vybrať"
@@ -239,7 +254,8 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
     }
 
     private fun openBrowser() {
-        screenManager.push(BrowseScreen(carContext, null, "Vybrať", ::play))
+        val b = controller ?: return
+        screenManager.push(BrowseScreen(carContext, b, null, "Vybrať", ::play))
     }
 
     /** Spusti vybranu polozku (rad a pokracovanie od pozicie zostavi PlaybackService) a vrati sa na obraz. */

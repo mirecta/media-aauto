@@ -1,4 +1,4 @@
-package sk.talasek.mediaauto.car
+package sk.talasek.mediaauto.video
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -22,17 +22,18 @@ import androidx.media3.session.MediaConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import sk.talasek.mediaauto.App
-import sk.talasek.mediaauto.library.Library
+import androidx.media3.session.MediaBrowser
+import kotlinx.coroutines.guava.await
 
 /**
  * Vyber filmov, serialov a videi priamo v Médiá Video. Pouziva ten isty strom ako Médiá Auto
- * (Library), po vybere sa video spusti a obrazovka sa vrati na obraz.
+ * (cez MediaBrowser), po vybere sa video spusti a obrazovka sa vrati na obraz.
  *
  * @param parentId ID polozky v Library alebo null pre uvodne menu; [query] pre vysledky hladania.
  */
 class BrowseScreen(
     carContext: CarContext,
+    private val browser: MediaBrowser,
     private val parentId: String?,
     private val title: String,
     private val play: (MediaItem) -> Unit,
@@ -46,16 +47,15 @@ class BrowseScreen(
         private val START = listOf(
             "list/movies/unfinished/1" to "Rozpozerané filmy",
             "list/serials/unfinished/1" to "Rozpozerané seriály",
-            Library.DOWNLOADS to "Stiahnuté",
+            "downloads" to "Stiahnuté",
             "list/movies/queue/1" to "Môj zoznam filmov",
             "list/serials/queue/1" to "Môj zoznam seriálov",
-            Library.MOVIES to "Všetky filmy",
-            Library.SERIALS to "Všetky seriály",
-            Library.VIDEOS to "Videá v telefóne"
+            "movies" to "Všetky filmy",
+            "serials" to "Všetky seriály",
+            "videos" to "Videá v telefóne"
         )
     }
 
-    private val library = App.get(carContext).library
     private var items: List<MediaItem>? = null
     private var error: String? = null
 
@@ -66,9 +66,10 @@ class BrowseScreen(
     private fun load() {
         lifecycleScope.launch {
             try {
-                val list = if (query != null) library.search(query) else library.children(parentId!!)
+                val result = if (query != null) browser.getSearchResult(query, 0, Int.MAX_VALUE, null).await()
+                else browser.getChildren(parentId!!, 0, Int.MAX_VALUE, null).await()
                 // Hudba do obrazu nepatri.
-                items = list.filter { !it.mediaId.startsWith("song/") && it.mediaId != Library.MUSIC }
+                items = result.value.orEmpty().filter { !it.mediaId.startsWith("song/") && it.mediaId != "music" }
             } catch (e: Exception) {
                 error = e.message ?: "Chyba"
             }
@@ -110,8 +111,11 @@ class BrowseScreen(
     private fun image(item: MediaItem): CarIcon? {
         val uri = item.mediaMetadata.artworkUri ?: return null
         if (uri.scheme == "android.resource") {
-            val id = carContext.resources.getIdentifier(uri.lastPathSegment, "drawable", carContext.packageName)
-            return if (id != 0) CarIcon.Builder(IconCompat.createWithResource(carContext, id)).build() else null
+            // Ikona z aplikacie Médiá Auto.
+            val pkg = uri.authority ?: return null
+            val res = runCatching { carContext.packageManager.getResourcesForApplication(pkg) }.getOrNull() ?: return null
+            val id = res.getIdentifier(uri.lastPathSegment, "drawable", pkg)
+            return if (id != 0) CarIcon.Builder(IconCompat.createWithResource(res, pkg, id)).build() else null
         }
         return icons.get(uri.toString())?.let { CarIcon.Builder(IconCompat.createWithBitmap(it)).build() }
     }
@@ -131,7 +135,7 @@ class BrowseScreen(
             meta.isBrowsable == true && !item.mediaId.startsWith("info/") -> {
                 b.setBrowsable(true)
                 b.setOnClickListener {
-                    screenManager.push(BrowseScreen(carContext, item.mediaId, meta.title?.toString() ?: "", play))
+                    screenManager.push(BrowseScreen(carContext, browser, item.mediaId, meta.title?.toString() ?: "", play))
                 }
             }
         }
@@ -142,11 +146,11 @@ class BrowseScreen(
         val list = ItemList.Builder()
         if (parentId == null && query == null) {
             list.addItem(Row.Builder().setTitle("Hľadať").setBrowsable(true).setOnClickListener {
-                screenManager.push(SearchScreen(carContext, play))
+                screenManager.push(SearchScreen(carContext, browser, play))
             }.build())
             START.forEach { (id, label) ->
                 list.addItem(Row.Builder().setTitle(label).setBrowsable(true).setOnClickListener {
-                    screenManager.push(BrowseScreen(carContext, id, label, play))
+                    screenManager.push(BrowseScreen(carContext, browser, id, label, play))
                 }.build())
             }
             return wrap(ListTemplate.Builder().setTitle(title).setHeaderAction(Action.BACK).setSingleList(list.build()).build())
@@ -167,11 +171,11 @@ class BrowseScreen(
 }
 
 /** Hladanie filmov a serialov (klavesnica je dostupna len ked auto stoji). */
-class SearchScreen(carContext: CarContext, private val play: (MediaItem) -> Unit) : Screen(carContext) {
+class SearchScreen(carContext: CarContext, private val browser: MediaBrowser, private val play: (MediaItem) -> Unit) : Screen(carContext) {
     override fun onGetTemplate(): Template = SearchTemplate.Builder(object : SearchTemplate.SearchCallback {
         override fun onSearchSubmitted(searchText: String) {
             if (searchText.isNotBlank()) {
-                screenManager.push(BrowseScreen(carContext, null, "Hľadanie: $searchText", play, searchText.trim()))
+                screenManager.push(BrowseScreen(carContext, browser, null, "Hľadanie: $searchText", play, searchText.trim()))
             }
         }
     }).setHeaderAction(Action.BACK).setSearchHint("Názov filmu alebo seriálu").setShowKeyboardByDefault(true).build()

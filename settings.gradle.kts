@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "media-aauto"
-include(":app")
+include(":app", ":carvideo")

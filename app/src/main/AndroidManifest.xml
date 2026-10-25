@@ -9,10 +9,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <!-- Obraz v aute: aplikacia sa hlasi ako navigacna, aby dostala plochu na kreslenie. -->
-    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" />
-    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
-    <uses-permission android:name="com.google.android.gms.permission.CAR_SPEED" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -69,21 +65,6 @@
             <intent-filter>
                 <action android:name="androidx.media3.exoplayer.downloadService.action.RESTART" />
                 <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </service>
-
-        <!-- Obraz videa na displeji auta, len ked auto stoji (vid VideoCarAppService). -->
-        <meta-data
-            android:name="androidx.car.app.minCarApiLevel"
-            android:value="1" />
-        <service
-            android:name=".car.VideoCarAppService"
-            android:exported="true"
-            android:icon="@drawable/ic_video_app"
-            android:label="@string/car_video_name">
-            <intent-filter>
-                <action android:name="androidx.car.app.CarAppService" />
-                <category android:name="androidx.car.app.category.NAVIGATION" />
             </intent-filter>
         </service>
 

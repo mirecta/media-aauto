@@ -21,8 +21,9 @@ Android aplikácia pre Android Auto na prehrávanie lokálnej hudby a videí a f
 ### Video v aute, keď stojí – „Médiá Video“
 
 Android Auto zatiaľ nepovoľuje video aplikácie tretích strán (oficiálna podpora pre Android 17 sa
-pripravuje). Aplikácia preto obsahuje druhú časť **Médiá Video**, ktorá sa v aute hlási ako
-*navigačná* – tie dostanú od auta plochu na kreslenie mapy a my na ňu kreslíme video.
+pripravuje). Preto je tu druhá aplikácia **Médiá Video** (modul `carvideo`), ktorá sa v aute hlási ako
+*navigačná* – tie dostanú od auta plochu na kreslenie mapy a my na ňu kreslíme video. Je samostatná,
+lebo Android Auto ukazuje z jedného balíka len jednu ikonu. Pripája sa na prehrávač a zoznamy Médiá Auto.
 
 - V **Médiá Video** ťuknite na **Vybrať** (rozpozerané, môj zoznam, stiahnuté, všetky filmy/seriály, hľadanie) –
   po výbere sa hneď spustí obraz. Prehrávanie spustené v Médiá Auto alebo v telefóne sa tu tiež zobrazí.
@@ -36,8 +37,11 @@ pripravuje). Aplikácia preto obsahuje druhú časť **Médiá Video**, ktorá s
 
 ```sh
 ./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk               # Médiá Auto
+adb install -r carvideo/build/outputs/apk/debug/carvideo-debug.apk     # Médiá Video
 ```
+
+Po inštalácii otvorte v telefóne **Médiá Video** a povoľte *rýchlosť auta*.
 
 Pri sideloadnutej aplikácii treba v Android Auto zapnúť neznáme zdroje:
 Android Auto nastavenia → 10× ťuknúť na *Verzia* (vývojársky režim) → ⋮ → Nastavenia pre vývojárov →
@@ -60,7 +64,7 @@ Testovanie bez auta: [Desktop Head Unit](https://developer.android.com/training/
 - `library/LocalMedia.kt` – MediaStore; `library/ArtworkProvider.kt` – obrázky cez `content://` pre Auto
 - `download/` – sťahovanie (Media3 DownloadManager, cache s kľúčom `sosac:<kind>:<id>`)
 - `PlaybackService.kt` – `MediaLibraryService` (Media3/ExoPlayer), ukladanie pozície
-- `car/VideoCarAppService.kt` – obraz videa na displeji auta (navigačná plocha + virtuálny displej)
+- `carvideo/` – aplikácia Médiá Video: obraz na displeji auta (navigačná plocha + virtuálny displej), výber
 - `ui/` – prehliadač, nastavenia, prehrávač s obrazom
 
 Chýba oproti Tizen verzii: titulky, ručný výber streamu, pridanie/odobranie zo zoznamu.
