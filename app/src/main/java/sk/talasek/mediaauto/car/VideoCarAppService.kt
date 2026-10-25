@@ -33,6 +33,7 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -79,6 +80,19 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
     private var presentation: Presentation? = null
     private var playerView: PlayerView? = null
     private var cover: TextView? = null
+    private var visibleArea: android.graphics.Rect? = null
+    private var surfaceSize: Pair<Int, Int>? = null
+
+    private fun fitVideo() {
+        val pv = playerView ?: return
+        val area = visibleArea?.takeIf { !it.isEmpty } ?: return
+        val (w, h) = surfaceSize ?: return
+        pv.post {
+            pv.layoutParams = (pv.layoutParams as FrameLayout.LayoutParams).apply {
+                setMargins(area.left, area.top, maxOf(0, w - area.right), maxOf(0, h - area.bottom))
+            }
+        }
+    }
 
     /** null = rychlost nie je znama. */
     private var speed: Float? = null
@@ -106,12 +120,20 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
             val dm = ContextCompat.getSystemService(carContext, DisplayManager::class.java) ?: return
             val vd = dm.createVirtualDisplay("MediaAutoVideo", container.width, container.height, container.dpi, surface, 0)
             display = vd
+            surfaceSize = container.width to container.height
             showPresentation(vd)
+            fitVideo()
         }
 
         override fun onSurfaceDestroyed(container: SurfaceContainer) = releaseDisplay()
 
         override fun onClick(x: Float, y: Float) = togglePlay()
+
+        /** Obraz umiestnime len do casti, ktoru nezakryva karta prehravaca ani tlacidla. */
+        override fun onVisibleAreaChanged(visibleArea: android.graphics.Rect) {
+            this@VideoScreen.visibleArea = android.graphics.Rect(visibleArea)
+            fitVideo()
+        }
     }
 
     init {
@@ -134,6 +156,8 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
             playerView?.player = c
             updateCover()
             invalidate()
+            // Ak nic nehra, rovno ponukneme vyber.
+            if (c.currentMediaItem == null && screenManager.top === this) openBrowser()
         }, ContextCompat.getMainExecutor(carContext))
         startSpeed()
     }
@@ -219,7 +243,7 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
                 "Povoľte prístup k rýchlosti auta\n\nOtvorte Médiá Auto v telefóne a povoľte „rýchlosť auta“"
             speed == null -> "Rýchlosť auta nie je známa – video sa zobrazí len keď auto stojí"
             !parked -> "Video je dostupné len keď auto stojí\n(zvuk pokračuje)"
-            c == null || c.currentMediaItem == null -> "Nič sa neprehráva\n\nVyberte film alebo seriál v aplikácii Médiá Auto"
+            c == null || c.currentMediaItem == null -> "Nič sa neprehráva\n\nŤuknite na Vybrať"
             c.currentMediaItem?.mediaMetadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC -> "Prehráva sa hudba"
             else -> null
         }
@@ -227,6 +251,19 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
             text.text = message
             text.visibility = if (message == null) View.GONE else View.VISIBLE
         }
+    }
+
+    private fun openBrowser() {
+        screenManager.push(BrowseScreen(carContext, null, "Vybrať", ::play))
+    }
+
+    /** Spusti vybranu polozku (rad a pokracovanie od pozicie zostavi PlaybackService) a vrati sa na obraz. */
+    private fun play(item: MediaItem) {
+        val c = controller ?: return
+        c.setMediaItem(MediaItem.Builder().setMediaId(item.mediaId).build())
+        c.prepare()
+        c.play()
+        screenManager.popToRoot()
     }
 
     private fun togglePlay() {
@@ -240,6 +277,7 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
         val c = controller
         val playing = c?.isPlaying == true
         val strip = ActionStrip.Builder()
+            .addAction(Action.Builder().setTitle("Vybrať").setOnClickListener { openBrowser() }.build())
             .addAction(Action.Builder().setIcon(icon(R.drawable.ic_replay_30)).setOnClickListener {
                 controller?.let { it.seekTo(maxOf(0, it.currentPosition - SEEK_MS)) }
             }.build())
@@ -248,7 +286,6 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
             .addAction(Action.Builder().setIcon(icon(R.drawable.ic_forward_30)).setOnClickListener {
                 controller?.let { it.seekTo(it.currentPosition + SEEK_MS) }
             }.build())
-            .addAction(Action.Builder().setTitle("Koniec").setOnClickListener { carContext.finishCarApp() }.build())
             .build()
         return NavigationTemplate.Builder().setActionStrip(strip).build()
     }

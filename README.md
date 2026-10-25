@@ -24,8 +24,10 @@ Android Auto zatiaľ nepovoľuje video aplikácie tretích strán (oficiálna po
 pripravuje). Aplikácia preto obsahuje druhú časť **Médiá Video**, ktorá sa v aute hlási ako
 *navigačná* – tie dostanú od auta plochu na kreslenie mapy a my na ňu kreslíme video.
 
-- Obsah sa vyberá v **Médiá Auto** (alebo v telefóne), potom otvorte **Médiá Video** a uvidíte obraz.
-- Ovládanie: −30 s, play/pauza, +30 s, ťuknutie na obraz = pauza.
+- V **Médiá Video** ťuknite na **Vybrať** (rozpozerané, môj zoznam, stiahnuté, všetky filmy/seriály, hľadanie) –
+  po výbere sa hneď spustí obraz. Prehrávanie spustené v Médiá Auto alebo v telefóne sa tu tiež zobrazí.
+- Médiá Video sa zobrazuje na mieste navigácie (napr. Waze); naspäť na navigáciu sa prepnete jej otvorením.
+- Ovládanie: Vybrať, −30 s, play/pauza, +30 s, ťuknutie na obraz = pauza.
 - Obraz sa ukáže **len pri overenej nulovej rýchlosti** auta (povolenie *rýchlosť auta* sa pýta
   pri prvom spustení). Počas jazdy alebo pri neznámej rýchlosti je obraz zakrytý a ide len zvuk.
 - Ide o neoficiálne riešenie – funguje len pri sideloade so zapnutými *Neznámymi zdrojmi*, nie cez Google Play.
