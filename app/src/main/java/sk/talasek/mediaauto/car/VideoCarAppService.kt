@@ -80,19 +80,7 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
     private var presentation: Presentation? = null
     private var playerView: PlayerView? = null
     private var cover: TextView? = null
-    private var visibleArea: android.graphics.Rect? = null
-    private var surfaceSize: Pair<Int, Int>? = null
 
-    private fun fitVideo() {
-        val pv = playerView ?: return
-        val area = visibleArea?.takeIf { !it.isEmpty } ?: return
-        val (w, h) = surfaceSize ?: return
-        pv.post {
-            pv.layoutParams = (pv.layoutParams as FrameLayout.LayoutParams).apply {
-                setMargins(area.left, area.top, maxOf(0, w - area.right), maxOf(0, h - area.bottom))
-            }
-        }
-    }
 
     /** null = rychlost nie je znama. */
     private var speed: Float? = null
@@ -115,25 +103,22 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
 
     private val surfaceCallback = object : SurfaceCallback {
         override fun onSurfaceAvailable(container: SurfaceContainer) {
+            android.util.Log.i("MediaAutoCar", "surfaceAvailable ${container.width}x${container.height} surface=${container.surface}")
             val surface = container.surface ?: return
             releaseDisplay()
             val dm = ContextCompat.getSystemService(carContext, DisplayManager::class.java) ?: return
             val vd = dm.createVirtualDisplay("MediaAutoVideo", container.width, container.height, container.dpi, surface, 0)
             display = vd
-            surfaceSize = container.width to container.height
             showPresentation(vd)
-            fitVideo()
         }
 
-        override fun onSurfaceDestroyed(container: SurfaceContainer) = releaseDisplay()
+        override fun onSurfaceDestroyed(container: SurfaceContainer) {
+            android.util.Log.i("MediaAutoCar", "surfaceDestroyed")
+            releaseDisplay()
+        }
 
         override fun onClick(x: Float, y: Float) = togglePlay()
 
-        /** Obraz umiestnime len do casti, ktoru nezakryva karta prehravaca ani tlacidla. */
-        override fun onVisibleAreaChanged(visibleArea: android.graphics.Rect) {
-            this@VideoScreen.visibleArea = android.graphics.Rect(visibleArea)
-            fitVideo()
-        }
     }
 
     init {
