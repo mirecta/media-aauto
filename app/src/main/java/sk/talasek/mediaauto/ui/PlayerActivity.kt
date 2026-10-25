@@ -62,9 +62,5 @@ class PlayerActivity : AppCompatActivity() {
         super.onStop()
     }
 
-    private fun setVideo(c: MediaController, enabled: Boolean) {
-        c.trackSelectionParameters = c.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
-            .build()
-    }
+    private fun setVideo(c: MediaController, enabled: Boolean) = PlaybackService.claimVideo(c, "phone", enabled)
 }

@@ -167,12 +167,11 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
         }
     }
 
-    /** Video stopu zapneme, len kym je obrazovka v aute otvorena (inak sa zbytocne dekoduje). */
-    private fun setVideoTrack(c: MediaController, enabled: Boolean) {
-        c.trackSelectionParameters = c.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !enabled)
-            .build()
-    }
+    /** Kazda obrazovka v aute ma vlastne ID, aby zatvaranie starej nevyplo obraz novej. */
+    private val videoId = "car-" + System.identityHashCode(this)
+
+    /** Video stopu chceme, len kym je obrazovka v aute otvorena (inak sa zbytocne dekoduje). */
+    private fun setVideoTrack(c: MediaController, enabled: Boolean) = PlaybackService.claimVideo(c, videoId, enabled)
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun showPresentation(vd: VirtualDisplay) {

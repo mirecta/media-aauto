@@ -16,7 +16,11 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
+import android.os.Bundle
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -41,6 +45,19 @@ class PlaybackService : MediaLibraryService() {
     companion object {
         private const val TICK_MS = 5_000L
         private const val SYNC_EVERY = 6 // * TICK_MS = kazdych 30 s
+        private const val CMD_VIDEO = "sk.talasek.mediaauto.VIDEO"
+        private val VIDEO_COMMAND = SessionCommand(CMD_VIDEO, Bundle.EMPTY)
+
+        /**
+         * Prihlasi/odhlasi obrazovku, ktora zobrazuje obraz (telefon, displej auta). Video stopa je zapnuta,
+         * kym ju potrebuje aspon jedna; tak si obrazovky navzajom obraz nevypnu.
+         */
+        fun claimVideo(controller: MediaController, id: String, on: Boolean) {
+            controller.sendCustomCommand(VIDEO_COMMAND, Bundle().apply {
+                putString("id", id)
+                putBoolean("on", on)
+            })
+        }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -48,6 +65,14 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var library: Library
     private lateinit var player: ExoPlayer
     private lateinit var session: MediaLibrarySession
+    /** Kto prave potrebuje obraz (ID obrazovky -> jej pripojenie). */
+    private val videoClaims = mutableMapOf<String, MediaSession.ControllerInfo>()
+
+    private fun applyVideo() {
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, videoClaims.isEmpty())
+            .build()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -162,6 +187,30 @@ class PlaybackService : MediaLibraryService() {
     // ---- strom a rad ----
 
     private inner class Callback : MediaLibrarySession.Callback {
+
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+                .add(VIDEO_COMMAND)
+                .build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(commands)
+                .build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction != CMD_VIDEO) return super.onCustomCommand(session, controller, customCommand, args)
+            val id = args.getString("id") ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+            if (args.getBoolean("on")) videoClaims[id] = controller else videoClaims.remove(id)
+            applyVideo()
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+
+        override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            // Obrazovka sa odpojila bez odhlasenia (pad, zatvorenie) – jej narok na obraz zrusime.
+            if (videoClaims.values.removeAll { it == controller }) applyVideo()
+        }
 
         private fun <T> page(list: List<T>, page: Int, pageSize: Int): List<T> {
             if (pageSize <= 0 || pageSize == Int.MAX_VALUE) return list
