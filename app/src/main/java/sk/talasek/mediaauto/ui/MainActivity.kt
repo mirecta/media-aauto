@@ -117,9 +117,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestPermissions() {
+        // Rychlost auta treba povolit tu: ziadost z auta sa ukaze na (vacsinou zamknutom) telefone.
         val wanted = if (Build.VERSION.SDK_INT >= 33) arrayOf(
-            Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.POST_NOTIFICATIONS
-        ) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.POST_NOTIFICATIONS,
+            "com.google.android.gms.permission.CAR_SPEED"
+        ) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, "com.google.android.gms.permission.CAR_SPEED")
         val missing = wanted.filter { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray())
     }

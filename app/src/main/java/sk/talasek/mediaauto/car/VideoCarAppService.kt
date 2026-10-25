@@ -85,8 +85,10 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
     private val parked get() = speed?.let { it < PARKED_MPS } == true
 
     private val speedListener = OnCarDataAvailableListener<Speed> { data ->
-        val raw = data.rawSpeedMetersPerSecond
-        speed = if (raw.status == CarValue.STATUS_SUCCESS) raw.value?.let { kotlin.math.abs(it) } else null
+        // Android Auto casto posiela len zobrazovanu rychlost (surova je "nepodporovana").
+        val value = listOf(data.rawSpeedMetersPerSecond, data.displaySpeedMetersPerSecond)
+            .firstOrNull { it.status == CarValue.STATUS_SUCCESS && it.value != null }?.value
+        speed = value?.let { kotlin.math.abs(it) }
         updateCover()
     }
 
@@ -160,7 +162,9 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
         runCatching {
             carContext.getCarService(CarHardwareManager::class.java).carInfo
                 .addSpeedListener(MoreExecutors.directExecutor(), speedListener)
-        }.onFailure { updateCover() }
+        }.onFailure {
+            updateCover()
+        }
     }
 
     /** Video stopu zapneme, len kym je obrazovka v aute otvorena (inak sa zbytocne dekoduje). */
@@ -212,6 +216,8 @@ private class VideoScreen(carContext: CarContext) : Screen(carContext), DefaultL
         val text = cover ?: return
         val c = controller
         val message = when {
+            ContextCompat.checkSelfPermission(carContext, SPEED_PERMISSION) != android.content.pm.PackageManager.PERMISSION_GRANTED ->
+                "Povoľte prístup k rýchlosti auta\n\nOtvorte Médiá Auto v telefóne a povoľte „rýchlosť auta“"
             speed == null -> "Rýchlosť auta nie je známa – video sa zobrazí len keď auto stojí"
             !parked -> "Video je dostupné len keď auto stojí\n(zvuk pokračuje)"
             c == null || c.currentMediaItem == null -> "Nič sa neprehráva\n\nVyberte film alebo seriál v aplikácii Médiá Auto"
